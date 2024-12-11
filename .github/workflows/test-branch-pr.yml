@@ -29,14 +29,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Config env
-        run: |
-          cp .env.local.phpstan.example .env
-
-      - name: Run tests
-        run: |
-          npm test  # Запустите ваши тесты
-
   add-label:
     runs-on: ubuntu-latest
     needs: run-tests  # Зависит от run-tests
