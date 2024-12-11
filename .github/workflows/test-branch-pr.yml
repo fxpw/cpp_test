@@ -1,30 +1,55 @@
-name: Run test
+name: Run tests and label on pull request
 
 on:
-  push:
-    tags:
-      - 'run_tests'
+  pull_request:
+    types: [labeled]  # Запускается, когда метка добавляется к пулл-реквесту
 
 jobs:
-  test-job:
+  check-label:
     runs-on: ubuntu-latest
+    outputs:
+      is_help_wanted: ${{ steps.check_label.outputs.is_help_wanted }}  # Установка выходных данных для следующего job
+    steps:
+      - name: Check for 'help wanted' label
+        id: check_label
+        run: |
+          if [ "${{ github.event.label.name }}" == "help wanted" ]; then
+            echo "is_help_wanted=true" >> $GITHUB_ENV
+            echo "::set-output name=is_help_wanted::true"  # Устанавливаем выходные данные
+          else
+            echo "is_help_wanted=false" >> $GITHUB_ENV
+            echo "::set-output name=is_help_wanted::false"  # Устанавливаем выходные данные
+          fi
+
+  run-tests:
+    runs-on: ubuntu-latest
+    needs: check-label  # Зависит от check-label
+    if: needs.check-label.outputs.is_help_wanted == 'true'  # Запустить только если метка 'help wanted' была найдена
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Config env
-        run : |
+        run: |
           cp .env.local.phpstan.example .env
-  test-job2:
-    needs: [test-job]
+
+      - name: Run tests
+        run: |
+          npm test  # Запустите ваши тесты
+
+  add-label:
     runs-on: ubuntu-latest
+    needs: run-tests  # Зависит от run-tests
+    if: success()  # Условие запуска, если предыдущий job прошел успешно
     steps:
       - name: Add label to pull request
-        if: success()
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Токен для аутентификации
         run: |
+          # Получить номер пулл-реквеста из контекста
           PR_NUMBER=${{ github.event.pull_request.number }}
+
+          # Использовать GitHub API для добавления метки
           curl -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
